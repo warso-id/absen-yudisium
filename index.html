@@ -384,9 +384,7 @@
 
         input[type="text"], 
         input[type="email"], 
-        input[type="tel"], 
-        input[type="date"], 
-        input[type="time"] {
+        input[type="tel"] {
             width: 100%;
             padding: 16px 18px;
             background: #0b1f17;
@@ -425,24 +423,6 @@
             opacity: 0.5;
             cursor: not-allowed;
             background: #0a1a12;
-        }
-
-        input[type="date"],
-        input[type="time"] {
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234ade80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3e%3c/rect%3e%3cline x1='16' y1='2' x2='16' y2='6'%3e%3c/line%3e%3cline x1='8' y1='2' x2='8' y2='6'%3e%3c/line%3e%3cline x1='3' y1='10' x2='21' y2='10'%3e%3c/line%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
-            background-size: 20px;
-            padding-right: 40px;
-            color-scheme: dark;
-        }
-
-        @supports (-webkit-touch-callout: none) {
-            input[type="date"],
-            input[type="time"] {
-                color-scheme: dark;
-                -webkit-appearance: none;
-            }
         }
 
         .field-hint {
@@ -847,9 +827,7 @@
         @media (max-width: 768px) {
             input[type="text"],
             input[type="email"],
-            input[type="tel"],
-            input[type="date"],
-            input[type="time"] {
+            input[type="tel"] {
                 font-size: 16px !important;
             }
         }
@@ -866,10 +844,6 @@
             .event-item {
                 flex-direction: column;
                 align-items: flex-start;
-            }
-            .event-item input {
-                margin-left: 0 !important;
-                width: 100%;
             }
             .lock-modal-content {
                 padding: 25px 20px;
@@ -952,24 +926,11 @@
             <span id="syncText">🟢 Live sync ke Google Spreadsheet</span>
         </div>
 
-        <!-- KONFIGURASI WAKTU PELAKSANAAN -->
+        <!-- INFORMASI YUDISIUM (TANPA INPUT) -->
         <div class="event-box">
             <div class="event-title">📚 Informasi Yudisium</div>
-            <div class="event-item">
-                <span class="event-icon">📅</span>
-                <span><strong>Tanggal Pelaksanaan:</strong></span>
-                <input type="date" id="tanggalPelaksanaan" value="2026-08-27" style="flex: 1; min-width: 150px; padding: 8px; border-radius: 8px; background: #0b1f17; border: 1px solid #2d6a4f; color: #f0fdf4; font-size: 14px;">
-            </div>
-            <div class="event-item">
-                <span class="event-icon">⏰</span>
-                <span><strong>Waktu Mulai:</strong></span>
-                <input type="time" id="waktuMulai" value="09:00" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 8px; background: #0b1f17; border: 1px solid #2d6a4f; color: #f0fdf4; font-size: 14px;">
-            </div>
-            <div class="event-item">
-                <span class="event-icon">⏱️</span>
-                <span><strong>Waktu Selesai:</strong></span>
-                <input type="time" id="waktuSelesai" value="16:00" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 8px; background: #0b1f17; border: 1px solid #2d6a4f; color: #f0fdf4; font-size: 14px;">
-            </div>
+            <div class="event-item"><span class="event-icon">📅</span><span><strong>Tanggal:</strong> <span id="displayTanggal">27 Agustus 2026</span></span></div>
+            <div class="event-item"><span class="event-icon">⏰</span><span><strong>Waktu:</strong> <span id="displayWaktu">09:00 - 16:00 WIB</span></span></div>
             <div class="event-item"><span class="event-icon">🏛️</span><span><strong>Tempat:</strong> Kampus Hanglekir - FIKOM UPDM</span></div>
             <div class="event-item"><span class="event-icon">🎓</span><span><strong>Universitas:</strong> Prof. Dr. Moestopo (Beragama)</span></div>
         </div>
@@ -1058,6 +1019,13 @@
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000;
 
+    // ===================== KONFIGURASI WAKTU (HARDCODED) =====================
+    const CONFIG_WAKTU = {
+        tanggal: '2026-08-20',    // Format: YYYY-MM-DD
+        mulai: '03:00',            // Format: HH:MM (24 jam)
+        selesai: '16:00'           // Format: HH:MM (24 jam)
+    };
+
     // ===================== STATE MANAGEMENT =====================
     let isSubmitting = false;
 
@@ -1074,29 +1042,29 @@
     const syncDot = document.getElementById('syncDot');
     const syncText = document.getElementById('syncText');
     const formLockStatus = document.getElementById('formLockStatus');
-    const tanggalPelaksanaan = document.getElementById('tanggalPelaksanaan');
-    const waktuMulai = document.getElementById('waktuMulai');
-    const waktuSelesai = document.getElementById('waktuSelesai');
     const lockModal = document.getElementById('lockModal');
     const lockModalMessage = document.getElementById('lockModalMessage');
     const lockModalInfo = document.getElementById('lockModalInfo');
     const countdownTimer = document.getElementById('countdownTimer');
     const lockCloseBtn = document.getElementById('lockCloseBtn');
+    const displayTanggal = document.getElementById('displayTanggal');
+    const displayWaktu = document.getElementById('displayWaktu');
 
     // ===================== COUNTDOWN VARIABLES =====================
     let countdownInterval = null;
 
+    // ===================== FORMAT TANGGAL UNTUK DISPLAY =====================
+    function formatTanggalDisplay(tanggalStr) {
+        const [year, month, day] = tanggalStr.split('-');
+        const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
+    }
+
     // ===================== FUNGSI CEK WAKTU FORM =====================
     function checkFormAccess() {
-        const tanggal = tanggalPelaksanaan.value;
-        const mulai = waktuMulai.value;
-        const selesai = waktuSelesai.value;
-        
-        if (!tanggal || !mulai || !selesai) {
-            lockForm('⚠️ Tanggal dan waktu pelaksanaan belum diatur.');
-            showLockModal('Form Belum Dikonfigurasi', 'Tanggal dan waktu pelaksanaan belum diatur.');
-            return;
-        }
+        const tanggal = CONFIG_WAKTU.tanggal;
+        const mulai = CONFIG_WAKTU.mulai;
+        const selesai = CONFIG_WAKTU.selesai;
         
         const now = new Date();
         const startDateTime = new Date(`${tanggal}T${mulai}:00`);
@@ -1107,11 +1075,11 @@
             const hours = Math.floor(timeDiff / (1000 * 60 * 60));
             const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
             lockForm(`🔒 Form akan dibuka dalam ${hours} jam ${minutes} menit.`);
-            showLockModal('Form Belum Dibuka', `Form akan dibuka dalam ${hours} jam ${minutes} menit.`);
+            showLockModal(`Form akan dibuka dalam ${hours} jam ${minutes} menit.`);
             startCountdown(startDateTime);
         } else if (now > endDateTime) {
             lockForm('🔒 Form sudah ditutup. Waktu pelaksanaan telah berakhir.');
-            showLockModal('Form Sudah Ditutup', 'Waktu pelaksanaan telah berakhir.');
+            showLockModal('Waktu pelaksanaan telah berakhir.');
             stopCountdown();
         } else {
             unlockForm();
@@ -1149,22 +1117,13 @@
     }
 
     // ===================== MODAL FUNCTIONS =====================
-    function showLockModal(title, message) {
+    function showLockModal(message) {
         lockModalMessage.textContent = message;
         lockModalInfo.innerHTML = `
-            📅 Tanggal: ${tanggalPelaksanaan.value}<br>
-            ⏰ Waktu: ${waktuMulai.value} - ${waktuSelesai.value} WIB
+            📅 Tanggal: ${formatTanggalDisplay(CONFIG_WAKTU.tanggal)}<br>
+            ⏰ Waktu: ${CONFIG_WAKTU.mulai} - ${CONFIG_WAKTU.selesai} WIB
         `;
         lockModal.classList.add('active');
-        
-        // Vibration hanya jika user sudah berinteraksi
-        try {
-            if (navigator.vibrate && document.hasFocus()) {
-                navigator.vibrate(200);
-            }
-        } catch (e) {
-            // Ignore vibration error
-        }
     }
 
     function hideLockModal() {
@@ -1509,10 +1468,6 @@
         });
     });
 
-    tanggalPelaksanaan.addEventListener('change', checkFormAccess);
-    waktuMulai.addEventListener('change', checkFormAccess);
-    waktuSelesai.addEventListener('change', checkFormAccess);
-
     // ===================== KONFIRMASI DIALOG =====================
     let pendingSubmitData = null;
 
@@ -1546,14 +1501,13 @@
         setTimeout(clearStatus, 3000);
     });
 
-    // ===================== SUBMIT KE SERVER DENGAN RETRY =====================
+    // ===================== SUBMIT KE SERVER =====================
     async function submitToServer(payload, retryCount = 0) {
         setLoading(true);
         clearStatus();
         setSyncStatus('syncing');
 
         try {
-            // Generate unique submission ID
             const submissionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             
             const dataWithSheet = {
@@ -1563,10 +1517,13 @@
             };
             
             const encodedData = encodeBase64(dataWithSheet);
+            
+            // Gunakan mode no-cors sebagai fallback
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ data: encodedData })
+                body: JSON.stringify({ data: encodedData }),
+                mode: 'cors'
             });
 
             if (!response.ok) {
@@ -1600,10 +1557,6 @@
                 showFieldError('whatsapp', 'Nomor sudah terdaftar');
                 setSyncStatus('error');
                 isSubmitting = false;
-            } else if (result.error === 'QUOTA_EXCEEDED' && retryCount < MAX_RETRIES) {
-                showStatus('warning', `⏳ Server sibuk. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
-                return submitToServer(payload, retryCount + 1);
             } else {
                 showStatus('error', '❌ ' + (result.message || 'Pengiriman gagal. Silakan coba lagi.'));
                 setSyncStatus('error');
@@ -1712,9 +1665,9 @@
             timestamp: new Date().toISOString(),
             semester: 'Ganjil 2026/2027',
             periode: 'September 2026 - Februari 2027',
-            tanggalPelaksanaan: tanggalPelaksanaan.value,
-            waktuMulai: waktuMulai.value,
-            waktuSelesai: waktuSelesai.value
+            tanggalPelaksanaan: CONFIG_WAKTU.tanggal,
+            waktuMulai: CONFIG_WAKTU.mulai,
+            waktuSelesai: CONFIG_WAKTU.selesai
         };
 
         showConfirmation(payload);
@@ -1722,6 +1675,10 @@
 
     // ===================== INISIALISASI =====================
     window.addEventListener('DOMContentLoaded', () => {
+        // Tampilkan tanggal dan waktu di info box
+        displayTanggal.textContent = formatTanggalDisplay(CONFIG_WAKTU.tanggal);
+        displayWaktu.textContent = `${CONFIG_WAKTU.mulai} - ${CONFIG_WAKTU.selesai} WIB`;
+        
         document.getElementById('strataS1').checked = true;
         updateNIMFieldHint();
         loadDraft();
