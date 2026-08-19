@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="Form Absen Yudisium - Fakultas Ilmu Komunikasi Universitas Prof. Dr. Moestopo (Beragama)">
     <meta name="theme-color" content="#052e16">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=yes">
-    <title>Form Absen Yudisium - FIKOM UPDM (B)</title>
+    <title>Form Absen Yudisium - FIKOM UPDM</title>
     <style>
         * {
             box-sizing: border-box;
@@ -969,7 +970,7 @@
                 <span><strong>Waktu Selesai:</strong></span>
                 <input type="time" id="waktuSelesai" value="16:00" style="flex: 1; min-width: 120px; padding: 8px; border-radius: 8px; background: #0b1f17; border: 1px solid #2d6a4f; color: #f0fdf4; font-size: 14px;">
             </div>
-            <div class="event-item"><span class="event-icon">🏛️</span><span><strong>Tempat:</strong> Kampus Hanglekir - FIKOM UPDM (B)</span></div>
+            <div class="event-item"><span class="event-icon">🏛️</span><span><strong>Tempat:</strong> Kampus Hanglekir - FIKOM UPDM</span></div>
             <div class="event-item"><span class="event-icon">🎓</span><span><strong>Universitas:</strong> Prof. Dr. Moestopo (Beragama)</span></div>
         </div>
 
@@ -1050,66 +1051,15 @@
 </div>
 
 <script>
-    // ===================== POLYFILL UNTUK BROWSER LAMA =====================
-    
-    if (!window.TextEncoder) {
-        window.TextEncoder = function() {
-            this.encode = function(str) {
-                const bytes = [];
-                for (let i = 0; i < str.length; i++) {
-                    bytes.push(str.charCodeAt(i) & 0xff);
-                }
-                return new Uint8Array(bytes);
-            };
-        };
-    }
-    
-    if (!window.fetch) {
-        window.fetch = function(url, options) {
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open(options.method || 'GET', url);
-                xhr.onload = () => resolve({
-                    ok: xhr.status >= 200 && xhr.status < 300,
-                    status: xhr.status,
-                    json: () => Promise.resolve(JSON.parse(xhr.responseText))
-                });
-                xhr.onerror = () => reject(new Error('Network error'));
-                xhr.send(options.body);
-            });
-        };
-    }
-    
-    if (!window.AbortController) {
-        window.AbortController = function() {
-            this.signal = { aborted: false };
-            this.abort = () => { this.signal.aborted = true; };
-        };
-    }
-
-    // ===================== DETEKSI BROWSER =====================
-    function detectBrowser() {
-        const ua = navigator.userAgent;
-        return {
-            isIOS: /iPad|iPhone|iPod/.test(ua),
-            isAndroid: /Android/.test(ua),
-            isSafari: /Safari/.test(ua) && !/Chrome/.test(ua),
-            isChrome: /Chrome/.test(ua),
-            isFirefox: /Firefox/.test(ua)
-        };
-    }
-
     // ===================== KONFIGURASI =====================
     const API_URL = 'https://script.google.com/macros/s/AKfycbx2f2rvJdUDvZltTwYq8BcTk9AQ0rFC4f-T4Lsb-oq6S_JplPKEQMSf5mooZJh0TIbkag/exec';
     const FETCH_TIMEOUT = 10000;
     const SHEET_NAME = 'GENAP_2025/2026';
     const MAX_RETRIES = 3;
-    const RETRY_DELAY = 2000; // 2 detik
+    const RETRY_DELAY = 2000;
 
     // ===================== STATE MANAGEMENT =====================
     let isSubmitting = false;
-    let submissionQueue = [];
-    let processingQueue = false;
 
     // ===================== ELEMEN =====================
     const form = document.getElementById('registrationForm');
@@ -1207,8 +1157,13 @@
         `;
         lockModal.classList.add('active');
         
-        if (navigator.vibrate) {
-            navigator.vibrate(200);
+        // Vibration hanya jika user sudah berinteraksi
+        try {
+            if (navigator.vibrate && document.hasFocus()) {
+                navigator.vibrate(200);
+            }
+        } catch (e) {
+            // Ignore vibration error
         }
     }
 
@@ -1302,7 +1257,6 @@
         if (!nim) return { valid: false, msg: 'NIM wajib diisi.' };
         if (!/^\d{9}$/.test(nim)) return { valid: false, msg: 'NIM harus 9 digit angka.' };
 
-        const yearPart = nim.substring(0, 4);
         const prodiCode = nim.substring(4, 6);
         const lastThree = nim.substring(6);
 
@@ -1459,8 +1413,6 @@
                         document.getElementById('tidakHadir').checked = true;
                     }
                     updateNIMFieldHint();
-                    showStatus('info', '📂 Data draft dipulihkan dari sesi sebelumnya.');
-                    setTimeout(clearStatus, 3000);
                 }
             } catch (e) {
                 console.error('Error loading draft:', e);
@@ -1545,8 +1497,6 @@
                     validateFieldRealTime('nim');
                 }
                 saveDraft();
-                setSyncStatus('syncing');
-                setTimeout(() => setSyncStatus('synced'), 300);
             }
         });
     });
@@ -1555,8 +1505,6 @@
         radio.addEventListener('change', () => {
             if (!radio.disabled) {
                 saveDraft();
-                setSyncStatus('syncing');
-                setTimeout(() => setSyncStatus('synced'), 300);
             }
         });
     });
@@ -1604,9 +1552,6 @@
         clearStatus();
         setSyncStatus('syncing');
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
         try {
             // Generate unique submission ID
             const submissionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
@@ -1621,11 +1566,8 @@
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ data: encodedData }),
-                signal: controller.signal
+                body: JSON.stringify({ data: encodedData })
             });
-
-            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status);
@@ -1659,7 +1601,6 @@
                 setSyncStatus('error');
                 isSubmitting = false;
             } else if (result.error === 'QUOTA_EXCEEDED' && retryCount < MAX_RETRIES) {
-                // Rate limit, retry with exponential backoff
                 showStatus('warning', `⏳ Server sibuk. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
                 await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
                 return submitToServer(payload, retryCount + 1);
@@ -1669,25 +1610,14 @@
                 isSubmitting = false;
             }
         } catch (error) {
-            clearTimeout(timeoutId);
             console.error('Submit error:', error);
             
-            if (error.name === 'AbortError') {
-                if (retryCount < MAX_RETRIES) {
-                    showStatus('warning', `⏰ Timeout. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
-                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    return submitToServer(payload, retryCount + 1);
-                } else {
-                    showStatus('error', '⏰ Koneksi timeout. Periksa internet Anda dan coba lagi.');
-                }
+            if (retryCount < MAX_RETRIES) {
+                showStatus('warning', `🔄 Gagal terhubung. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                return submitToServer(payload, retryCount + 1);
             } else {
-                if (retryCount < MAX_RETRIES) {
-                    showStatus('warning', `🔄 Gagal terhubung. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
-                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-                    return submitToServer(payload, retryCount + 1);
-                } else {
-                    showStatus('error', '❌ Gagal terhubung ke server. Coba lagi nanti.');
-                }
+                showStatus('error', '❌ Gagal terhubung ke server. Periksa koneksi internet Anda.');
             }
             setSyncStatus('error');
             isSubmitting = false;
@@ -1700,26 +1630,22 @@
     form.addEventListener('submit', function(event) {
         event.preventDefault();
 
-        // Cek apakah form terkunci
         if (form.classList.contains('form-locked')) {
             showStatus('error', '🔒 Form terkunci. Menunggu waktu pelaksanaan.');
             return;
         }
 
-        // Cek apakah sedang submitting
         if (isSubmitting) {
             showStatus('warning', '⏳ Sedang memproses, harap tunggu...');
             return;
         }
 
-        // Honeypot check
         const honeypot = document.getElementById('website').value;
         if (honeypot) {
             showStatus('error', '❌ Spam terdeteksi. Form tidak bisa diproses.');
             return;
         }
 
-        // Ambil data
         const nama = document.getElementById('nama').value.trim();
         const email = document.getElementById('email').value.trim().toLowerCase();
         const whatsappInput = document.getElementById('whatsapp').value.trim();
@@ -1730,7 +1656,6 @@
         const kehadiranElement = document.querySelector('input[name="kehadiran"]:checked');
         const kehadiran = kehadiranElement ? kehadiranElement.value : '';
 
-        // Validasi lengkap
         let isValid = true;
 
         if (!nama || nama.length < 2) {
@@ -1774,7 +1699,6 @@
             return;
         }
 
-        // Set flag submitting
         isSubmitting = true;
         saveDraft();
 
@@ -1796,19 +1720,6 @@
         showConfirmation(payload);
     });
 
-    // ===================== PERBAIKAN INPUT DATE/TIME UNTUK iOS =====================
-    function fixDateTimeInputs() {
-        const browser = detectBrowser();
-        
-        if (browser.isIOS && browser.isSafari) {
-            document.querySelectorAll('input[type="date"], input[type="time"]').forEach(input => {
-                input.addEventListener('focus', function() {
-                    this.style.fontSize = '16px';
-                });
-            });
-        }
-    }
-
     // ===================== INISIALISASI =====================
     window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('strataS1').checked = true;
@@ -1817,7 +1728,6 @@
         splashScreen.focus();
         setSyncStatus('synced');
         checkFormAccess();
-        fixDateTimeInputs();
     });
 
     document.addEventListener('keydown', (e) => {
