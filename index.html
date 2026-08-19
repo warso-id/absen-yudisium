@@ -44,7 +44,6 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
-        /* splash overlay dengan logo full screen */
         .splash-screen {
             position: fixed;
             top: 0;
@@ -743,6 +742,107 @@
             color: white;
         }
 
+        .lock-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+        .lock-modal.active {
+            display: flex;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .lock-modal-content {
+            background: linear-gradient(135deg, #052e16, #064e3b);
+            padding: 35px 30px;
+            border-radius: 30px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            border: 2px solid #f59e0b;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(245, 158, 11, 0.2);
+            animation: slideDown 0.4s ease;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .lock-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .lock-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #fbbf24;
+            margin-bottom: 15px;
+        }
+        .lock-message {
+            font-size: 14px;
+            color: #d1fae5;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .countdown-container {
+            background: rgba(0,0,0,0.5);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .countdown-label {
+            font-size: 12px;
+            color: #86efac;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .countdown-timer {
+            font-size: clamp(30px, 8vw, 40px);
+            font-weight: 800;
+            color: #fbbf24;
+            letter-spacing: 3px;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+        .countdown-info {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+        .lock-close-btn {
+            background: #f59e0b;
+            color: #052e16;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .lock-close-btn:hover {
+            background: #fbbf24;
+            transform: scale(1.05);
+        }
+
         @media (max-width: 768px) {
             input[type="text"],
             input[type="email"],
@@ -770,6 +870,9 @@
                 margin-left: 0 !important;
                 width: 100%;
             }
+            .lock-modal-content {
+                padding: 25px 20px;
+            }
         }
 
         @media (max-width: 350px) {
@@ -793,6 +896,26 @@
         </div>
         <div class="splash-text">FORM ABSEN YUDISIUM</div>
         <div class="splash-hint">Klik di mana saja untuk memulai</div>
+    </div>
+</div>
+
+<!-- MODAL LOCK/COUNTDOWN -->
+<div id="lockModal" class="lock-modal">
+    <div class="lock-modal-content">
+        <div class="lock-icon">🔒</div>
+        <div class="lock-title">Form Belum Dibuka</div>
+        <div class="lock-message" id="lockModalMessage">
+            Form akan dibuka dalam:
+        </div>
+        <div class="countdown-container">
+            <div class="countdown-label">⏰ COUNTDOWN</div>
+            <div class="countdown-timer" id="countdownTimer">00:00:00</div>
+        </div>
+        <div class="countdown-info" id="lockModalInfo">
+            📅 Tanggal: 27 Agustus 2026<br>
+            ⏰ Waktu: 09:00 - 16:00 WIB
+        </div>
+        <button class="lock-close-btn" id="lockCloseBtn">Tutup</button>
     </div>
 </div>
 
@@ -929,7 +1052,6 @@
 <script>
     // ===================== POLYFILL UNTUK BROWSER LAMA =====================
     
-    // Polyfill untuk TextEncoder
     if (!window.TextEncoder) {
         window.TextEncoder = function() {
             this.encode = function(str) {
@@ -942,7 +1064,6 @@
         };
     }
     
-    // Polyfill untuk fetch
     if (!window.fetch) {
         window.fetch = function(url, options) {
             return new Promise((resolve, reject) => {
@@ -959,7 +1080,6 @@
         };
     }
     
-    // Polyfill untuk AbortController
     if (!window.AbortController) {
         window.AbortController = function() {
             this.signal = { aborted: false };
@@ -980,9 +1100,16 @@
     }
 
     // ===================== KONFIGURASI =====================
-    const API_URL = 'PASTE_WAP_DISINI';
+    const API_URL = 'PASTE_GAP_DISINI';
     const FETCH_TIMEOUT = 10000;
     const SHEET_NAME = 'GENAP 2025-2026';
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 2000; // 2 detik
+
+    // ===================== STATE MANAGEMENT =====================
+    let isSubmitting = false;
+    let submissionQueue = [];
+    let processingQueue = false;
 
     // ===================== ELEMEN =====================
     const form = document.getElementById('registrationForm');
@@ -1000,6 +1127,14 @@
     const tanggalPelaksanaan = document.getElementById('tanggalPelaksanaan');
     const waktuMulai = document.getElementById('waktuMulai');
     const waktuSelesai = document.getElementById('waktuSelesai');
+    const lockModal = document.getElementById('lockModal');
+    const lockModalMessage = document.getElementById('lockModalMessage');
+    const lockModalInfo = document.getElementById('lockModalInfo');
+    const countdownTimer = document.getElementById('countdownTimer');
+    const lockCloseBtn = document.getElementById('lockCloseBtn');
+
+    // ===================== COUNTDOWN VARIABLES =====================
+    let countdownInterval = null;
 
     // ===================== FUNGSI CEK WAKTU FORM =====================
     function checkFormAccess() {
@@ -1009,6 +1144,7 @@
         
         if (!tanggal || !mulai || !selesai) {
             lockForm('⚠️ Tanggal dan waktu pelaksanaan belum diatur.');
+            showLockModal('Form Belum Dikonfigurasi', 'Tanggal dan waktu pelaksanaan belum diatur.');
             return;
         }
         
@@ -1021,10 +1157,16 @@
             const hours = Math.floor(timeDiff / (1000 * 60 * 60));
             const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
             lockForm(`🔒 Form akan dibuka dalam ${hours} jam ${minutes} menit.`);
+            showLockModal('Form Belum Dibuka', `Form akan dibuka dalam ${hours} jam ${minutes} menit.`);
+            startCountdown(startDateTime);
         } else if (now > endDateTime) {
             lockForm('🔒 Form sudah ditutup. Waktu pelaksanaan telah berakhir.');
+            showLockModal('Form Sudah Ditutup', 'Waktu pelaksanaan telah berakhir.');
+            stopCountdown();
         } else {
             unlockForm();
+            hideLockModal();
+            stopCountdown();
         }
     }
     
@@ -1055,6 +1197,61 @@
             formLockStatus.className = 'status';
         }, 3000);
     }
+
+    // ===================== MODAL FUNCTIONS =====================
+    function showLockModal(title, message) {
+        lockModalMessage.textContent = message;
+        lockModalInfo.innerHTML = `
+            📅 Tanggal: ${tanggalPelaksanaan.value}<br>
+            ⏰ Waktu: ${waktuMulai.value} - ${waktuSelesai.value} WIB
+        `;
+        lockModal.classList.add('active');
+        
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+    }
+
+    function hideLockModal() {
+        lockModal.classList.remove('active');
+    }
+
+    function startCountdown(targetDate) {
+        stopCountdown();
+        
+        function updateCountdown() {
+            const now = new Date();
+            const diff = targetDate - now;
+            
+            if (diff <= 0) {
+                stopCountdown();
+                checkFormAccess();
+                return;
+            }
+            
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            countdownTimer.textContent = 
+                String(hours).padStart(2, '0') + ':' +
+                String(minutes).padStart(2, '0') + ':' +
+                String(seconds).padStart(2, '0');
+        }
+        
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
+    }
+
+    function stopCountdown() {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }
+
+    // ===================== MODAL CLOSE =====================
+    lockCloseBtn.addEventListener('click', hideLockModal);
 
     // ===================== SPLASH INTERACTION =====================
     splashScreen.addEventListener('click', function() {
@@ -1396,12 +1593,13 @@
     confirmNo.addEventListener('click', () => {
         confirmationDialog.classList.remove('active');
         pendingSubmitData = null;
+        isSubmitting = false;
         showStatus('info', 'ℹ️ Pengiriman dibatalkan. Anda bisa periksa kembali data.');
         setTimeout(clearStatus, 3000);
     });
 
-    // ===================== SUBMIT KE SERVER =====================
-    async function submitToServer(payload) {
+    // ===================== SUBMIT KE SERVER DENGAN RETRY =====================
+    async function submitToServer(payload, retryCount = 0) {
         setLoading(true);
         clearStatus();
         setSyncStatus('syncing');
@@ -1410,9 +1608,13 @@
         const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
         try {
+            // Generate unique submission ID
+            const submissionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            
             const dataWithSheet = {
                 ...payload,
-                sheetName: SHEET_NAME
+                sheetName: SHEET_NAME,
+                submissionId: submissionId
             };
             
             const encodedData = encodeBase64(dataWithSheet);
@@ -1439,6 +1641,7 @@
                 document.getElementById('strataS1').checked = true;
                 updateNIMFieldHint();
                 clearDraft();
+                isSubmitting = false;
 
                 setTimeout(() => {
                     popupSuccess.style.display = 'none';
@@ -1449,24 +1652,45 @@
                 showStatus('warning', '⚠️ Email sudah terdaftar. Gunakan email lain.');
                 showFieldError('email', 'Email sudah terdaftar');
                 setSyncStatus('error');
+                isSubmitting = false;
             } else if (result.duplicate && result.field === 'whatsapp') {
                 showStatus('warning', '⚠️ Nomor WhatsApp sudah terdaftar.');
                 showFieldError('whatsapp', 'Nomor sudah terdaftar');
                 setSyncStatus('error');
+                isSubmitting = false;
+            } else if (result.error === 'QUOTA_EXCEEDED' && retryCount < MAX_RETRIES) {
+                // Rate limit, retry with exponential backoff
+                showStatus('warning', `⏳ Server sibuk. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
+                return submitToServer(payload, retryCount + 1);
             } else {
                 showStatus('error', '❌ ' + (result.message || 'Pengiriman gagal. Silakan coba lagi.'));
                 setSyncStatus('error');
+                isSubmitting = false;
             }
         } catch (error) {
             clearTimeout(timeoutId);
             console.error('Submit error:', error);
             
             if (error.name === 'AbortError') {
-                showStatus('error', '⏰ Koneksi timeout. Periksa internet Anda dan coba lagi.');
+                if (retryCount < MAX_RETRIES) {
+                    showStatus('warning', `⏰ Timeout. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return submitToServer(payload, retryCount + 1);
+                } else {
+                    showStatus('error', '⏰ Koneksi timeout. Periksa internet Anda dan coba lagi.');
+                }
             } else {
-                showStatus('error', '❌ Gagal terhubung ke server. Coba lagi nanti.');
+                if (retryCount < MAX_RETRIES) {
+                    showStatus('warning', `🔄 Gagal terhubung. Mencoba ulang (${retryCount + 1}/${MAX_RETRIES})...`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                    return submitToServer(payload, retryCount + 1);
+                } else {
+                    showStatus('error', '❌ Gagal terhubung ke server. Coba lagi nanti.');
+                }
             }
             setSyncStatus('error');
+            isSubmitting = false;
         } finally {
             setLoading(false);
         }
@@ -1476,17 +1700,26 @@
     form.addEventListener('submit', function(event) {
         event.preventDefault();
 
+        // Cek apakah form terkunci
         if (form.classList.contains('form-locked')) {
             showStatus('error', '🔒 Form terkunci. Menunggu waktu pelaksanaan.');
             return;
         }
 
+        // Cek apakah sedang submitting
+        if (isSubmitting) {
+            showStatus('warning', '⏳ Sedang memproses, harap tunggu...');
+            return;
+        }
+
+        // Honeypot check
         const honeypot = document.getElementById('website').value;
         if (honeypot) {
             showStatus('error', '❌ Spam terdeteksi. Form tidak bisa diproses.');
             return;
         }
 
+        // Ambil data
         const nama = document.getElementById('nama').value.trim();
         const email = document.getElementById('email').value.trim().toLowerCase();
         const whatsappInput = document.getElementById('whatsapp').value.trim();
@@ -1497,6 +1730,7 @@
         const kehadiranElement = document.querySelector('input[name="kehadiran"]:checked');
         const kehadiran = kehadiranElement ? kehadiranElement.value : '';
 
+        // Validasi lengkap
         let isValid = true;
 
         if (!nama || nama.length < 2) {
@@ -1540,6 +1774,8 @@
             return;
         }
 
+        // Set flag submitting
+        isSubmitting = true;
         saveDraft();
 
         const payload = {
